@@ -254,11 +254,8 @@ export default class Payouts extends Command {
 
 			if (to > UTUUSDCStart) {
 				let start = Math.max(i, UTUUSDCStart)
-				console.log(`USDC ${start}`)
 				query = mkBatch(i, to, UTUUSDC)
-				console.log(`USDC ${query}`)
 				batch = await request('https://api.thegraph.com/subgraphs/name/uniswap/uniswap-v2', query)
-				console.log(batch)
 
 				lps = mergeLPs(lps, extractLPs(batch, exclude))
 			}
