@@ -1,0 +1,7 @@
+{
+	"indent": ["error", "tab"],
+  "extends": [
+    "oclif",
+    "oclif-typescript"
+  ]
+}
