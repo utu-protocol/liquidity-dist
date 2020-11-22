@@ -51,7 +51,7 @@ function readState(): State {
 			start_block: t.start_block,
 			end_block: t.end_block,
 			current: t.current,
-			totals: new Map(t.totals.map(([k, v]: [string, string]) => { return [ k, Big(v) ] }))
+			totals: new Map(t.totals.map(([k, v]: [string, string]) => { return [ k, new Big(v) ] }))
 		}
 		return ret
 	} catch (err) {
@@ -244,7 +244,6 @@ export default class Payouts extends Command {
 
 		for (let i: number = state.current;;) {
 			if (i >= state.end_block) { break }
-			let positions: Map<string, Big> = new Map()
 			let to = Math.min(i + batchSize, state.end_block)
 
 			// ETH
