@@ -30,7 +30,7 @@ interface State {
 	start_block: number;
 	end_block: number;
 	current: number;
-	totals: Map<string, ethers.BigNumber>;
+	totals: Map<string, Big>;
 }
 
 function stateFileExists(): boolean {
@@ -51,7 +51,7 @@ function readState(): State {
 			start_block: t.start_block,
 			end_block: t.end_block,
 			current: t.current,
-			totals: new Map(t.totals.map(([k, v]: [string, string]) => { return [ k, ethers.BigNumber.from(v) ] }))
+			totals: new Map(t.totals.map(([k, v]: [string, string]) => { return [ k, Big(v) ] }))
 		}
 		return ret
 	} catch (err) {
@@ -109,12 +109,12 @@ function mkBatch(from: number, to: number, pair: string) {
 
 interface Block {
 	positions: Position[];
-	totalUTU: ethers.BigNumber;
+	totalUTU: Big;
 }
 
 interface Position {
 	address: string;
-	amount: ethers.BigNumber; // In UTU
+	amount: Big; // In UTU
 }
 
 /// Take a batch of liquidity positions and a set of addresses to exclude and
@@ -125,31 +125,31 @@ function extractLPs(batch: Map<string, LP[][]>, exclude: Set<string>): Map<numbe
 	for (let [k, ret] of Object.entries(batch)) {
 		let block: number = +k.substr(1)
 		if (ret.length < 1) {
-			rs.set(block, {positions: [], totalUTU: ethers.constants.Zero})
+			rs.set(block, {positions: [], totalUTU: new Big(0)})
 			continue
 		}
 
 		// Filter liquidity provided by UTU itself
 		let lps = ret.filter((p: LP) => { return !exclude.has(p.user.id.toLowerCase()) })
 		// And then add up the rest as new total
-		let totalEx: ethers.BigNumber = lps.reduce((acc: ethers.BigNumber, c: any) => {
-			return acc.add(ethers.utils.parseEther(c.liquidityTokenBalance))
-		}, ethers.constants.Zero)
-		let total: ethers.BigNumber = ret.reduce((acc: ethers.BigNumber, c: any) => {
-			return acc.add(ethers.utils.parseEther(c.liquidityTokenBalance))
-		}, ethers.constants.Zero)
+		let totalEx: Big = lps.reduce((acc: Big, c: any) => {
+			return acc.add(new Big(c.liquidityTokenBalance))
+		}, new Big(0))
+		let total: Big = ret.reduce((acc: Big, c: any) => {
+			return acc.add(new Big(c.liquidityTokenBalance))
+		}, new Big(0))
 
-		let totalUTU: ethers.BigNumber
+		let totalUTU: Big
 		// Check which pair is UTU
 		if (ret[0].pair.token0.symbol === "UTU") {
-			totalUTU = ethers.utils.parseEther(ret[0].pair.reserve0)
+			totalUTU = new Big(ret[0].pair.reserve0)
 		} else {
-			totalUTU = ethers.utils.parseEther(ret[0].pair.reserve1)
+			totalUTU = new Big(ret[0].pair.reserve1)
 		}
 
 		let utuPerLPShare = totalUTU.div(total)
 		let ps: Position[] = lps.map((p: LP) => {
-			return {address: p.user.id, amount: ethers.utils.parseEther(p.liquidityTokenBalance).mul(utuPerLPShare) }
+			return {address: p.user.id, amount: new Big(p.liquidityTokenBalance).mul(utuPerLPShare) }
 		})
 		rs.set(block, {positions: ps, totalUTU: utuPerLPShare.mul(totalEx)})
 
@@ -264,17 +264,17 @@ export default class Payouts extends Command {
 
 			// Iterate over blocks and assign the rewards
 			for (let [k, ps] of lps) {
-				let tu = new Big(ethers.utils.formatEther(ps.totalUTU))
+				let tu = ps.totalUTU
 
 				// Every blocks we calculate the rewards per UTU of liquidy provided
-				let utuPerUTU = (new Big(15)).div(ethers.utils.formatEther(ps.totalUTU))
+				let utuPerUTU = (new Big(15)).div(ps.totalUTU)
 
 				//let t: Big = new Big(0)
 				for (let p of ps.positions) {
-					let reward = (new Big(ethers.utils.formatEther(p.amount))).mul(utuPerUTU).toFixed(18)
+					let reward = p.amount.mul(utuPerUTU).toFixed(18)
 					//t = t.add(reward)
-					let t = state.totals.get(p.address) ?? ethers.constants.Zero
-					state.totals.set(p.address, t.add(ethers.utils.parseEther(reward)))
+					let t = state.totals.get(p.address) ?? new Big(0)
+					state.totals.set(p.address, t.add(reward))
 				}
 				// XXX: diff between actual and 15 goes to random LP?
 				//this.log(`Total: ${t}`)
@@ -291,16 +291,16 @@ export default class Payouts extends Command {
 		}
 
 		this.log(`Writing output.json`)
-		let t = ethers.constants.Zero
+		let t = new Big(0)
 		let out: {[key: string]: string} = {}
 		for (let [addr, amount] of state.totals) {
-			this.log(`${addr} receives ${ethers.utils.formatEther(amount)}`)
-			t = t.add(amount)
-			out[addr] = ethers.utils.formatEther(amount)
+			this.log(`${addr} receives ${amount.toFixed(18)}`)
+			t = t.add(amount.toFixed(18))
+			out[addr] = amount.toFixed(18)
 		}
 		fs.writeFileSync('output.json', JSON.stringify(out))
 
-		console.log(`Total: ${ethers.utils.formatEther(t)}. Average ${ethers.utils.formatEther(t.div(state.end_block - state.start_block))} UTU per block`)
+		console.log(`Total: ${t}. Average ${t.div(state.end_block - state.start_block)} UTU per block`)
 	}
 }
 
